@@ -1,0 +1,3 @@
+faker
+jinja2
+requests
