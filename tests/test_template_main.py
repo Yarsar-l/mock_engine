@@ -13,22 +13,20 @@ def main():
 
     # 创建模板（使用@变量形式）
     template = {
-        "greeting": "@format_greeting(name)",
-        "age": "@age",
-        "faker_name": "@faker.name()",
+        "greeting": "Hello, @request_body.name!",
+        "name": "@request_body.name",
+        "age": "@request_body.age",
+        "faker_name": "@faker.name",
         "nested": {
-            "user": {
-                "name": "@name",
-                "email": "@faker.email()"
+            "level1": {
+                "level2": "@request_body.nested.level1.level2"
             }
         },
-        # 测试请求头访问
         "headers": {
             "content_type": "@request_header.content-type",
             "user_agent": "@request_header.user-agent",
             "all_headers": "@request_header"
         },
-        # 测试请求体访问
         "body": {
             "username": "@request_body.username",
             "password": "@request_body.password",
@@ -40,22 +38,24 @@ def main():
         }
     }
 
-    # 创建请求数据
+    # 只包含标准结构的 request 对象
     request = {
-        "name": "张三",
-        "age": 25,
         "headers": {
             "content-type": "application/json",
             "user-agent": "Mozilla/5.0",
             "authorization": "Bearer token123"
         },
         "body": {
-            "username": "zhangsan",
-            "password": "123456",
-            "profile": {
-                "age": 25,
-                "address": "北京市朝阳区"
+            "name": "John",
+            "age": 25,
+            "nested": {
+                "level1": {
+                    "level2": "deep"
+                }
             }
+        },
+        "query": {
+            "foo": "bar"
         }
     }
 
@@ -76,38 +76,56 @@ def test_template_engine_with_assertions():
     
     # 测试模板 - 只包含需要返回的数据
     template = {
-        "greeting": "Hello, @name!",
-        "name": "@name",
-        "age": "@age",
+        "greeting": "Hello, @request_body.username!",
+        "name": "@request_body.username",
+        "age": "@request_body.profile.age",
         "faker_name": "@faker.name",
         "nested": {
             "level1": {
-                "level2": "@nested.level1.level2"
+                "level2": "@request_body.profile.address"
             }
+        },
+        "headers": {
+            "content_type": "@request_header.content-type",
+            "user_agent": "@request_header.user-agent",
+            "all_headers": "@request_header"
         }
     }
     
     # 测试数据
-    request_data = {
-        "name": "John",
-        "age": 25,
-        "nested": {
-            "level1": {
-                "level2": "deep"
+    request = {
+        "headers": {
+            "content-type": "application/json",
+            "user-agent": "Mozilla/5.0",
+            "authorization": "Bearer token123"
+        },
+        "body": {
+            "username": "zhangsan",
+            "password": "123456",
+            "profile": {
+                "age": 25,
+                "address": "北京市朝阳区"
             }
+        },
+        "query": {
+            "foo": "bar"
         }
     }
     
     # 定义断言规则（每项只包含path、op、value字段）
     assertions = [
         {"path": "$.age", "op": ">", "value": 18},
-        {"path": "$.name", "op": "==", "value": "John"},
-        {"path": "$.nested.level1.level2", "op": "==", "value": "deep"},
-        {"path": "$.faker_name", "op": "len>", "value": 0}
+        {"path": "$.name", "op": "==", "value": "zhangsan"},
+        {"path": "$.nested.level1.level2", "op": "==", "value": "北京市朝阳区"},
+        {"path": "$.faker_name", "op": "len>", "value": 0},
+        {"path": "$.headers.content_type", "op": "==", "value": "application/json"},
+        {"path": "$.headers.user_agent", "op": "==", "value": "Mozilla/5.0"},
+        {"path": "$.name", "op": "==", "value": "zhangsan"},
+        {"path": "$.age", "op": "==", "value": 25}
     ]
     
     # 生成数据并验证断言
-    result, assertion_results, debug = engine.generate_with_assertions(template, request_data, assertions)
+    result, assertion_results, debug = engine.generate_with_assertions(template, request, assertions)
     
     # 打印结果
     print("\n=== 模板渲染结果 ===")

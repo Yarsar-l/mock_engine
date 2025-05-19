@@ -119,6 +119,11 @@ def send_mock_request(
         parsed = urlparse(url)
         base_url = f"{parsed.scheme}://{parsed.netloc}"
         path = parsed.path
+    elif path and (path.startswith('http://') or path.startswith('https://')):
+        from urllib.parse import urlparse
+        parsed = urlparse(path)
+        base_url = f"{parsed.scheme}://{parsed.netloc}"
+        path = parsed.path
     try:
         client = RequestEngine(base_url=base_url, debug_callback=debug_callback)
         return client.send_request(

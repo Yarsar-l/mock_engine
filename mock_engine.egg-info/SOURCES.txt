@@ -6,6 +6,7 @@ mock_engine.egg-info/SOURCES.txt
 mock_engine.egg-info/dependency_links.txt
 mock_engine.egg-info/requires.txt
 mock_engine.egg-info/top_level.txt
+tests/test_code_engine_assert.py
 tests/test_code_main.py
 tests/test_request_main.py
 tests/test_template_main.py

@@ -1,3 +1,4 @@
 faker
 jinja2
 requests
+jsonpath-ng

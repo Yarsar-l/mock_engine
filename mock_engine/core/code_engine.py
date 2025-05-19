@@ -44,14 +44,13 @@ class CodeEngine:
             logger.debug(output)
             self.debug_output.append(output)
 
-    def _execute_sql(self, sql: str, db_config: Optional[Dict] = None) -> Dict:
+    def _execute_sql(self, sql: str, params: Optional[list] = None, db_config: Optional[Dict] = None) -> Dict:
         """
         执行SQL语句
-        
         Args:
             sql: SQL语句
+            params: 参数列表（可选）
             db_config: 数据库配置（可选）
-            
         Returns:
             执行结果字典
         """
@@ -61,11 +60,9 @@ class CodeEngine:
             if db_config is None:
                 db_config = self.context.get('db_config')
             from ..utils.db_utils import execute_sqls
-            result = execute_sqls(sql, db_config)
-            
+            result = execute_sqls(sql, db_config=db_config, params=params)
             if self.debug:
                 self._debug_print(f"SQL执行结果: {result}")
-                
             return result
         except Exception as e:
             logger.error(f"SQL执行失败: {str(e)}")
@@ -74,36 +71,28 @@ class CodeEngine:
     def _send_request(
         self,
         method: str,
-        path: str,
+        path: str = None,
         base_url: str = 'http://127.0.0.1:8000/mock/',
         headers: Optional[Dict] = None,
-        data: Optional[Dict] = None
+        data: Optional[Dict] = None,
+        **kwargs
     ) -> Dict:
         """
         发送HTTP请求
-        
-        Args:
-            method: 请求方法
-            path: 请求路径
-            base_url: 基础URL
-            headers: 请求头
-            data: 请求数据
-            
-        Returns:
-            响应结果字典
         """
         try:
             if self.debug:
                 self._debug_print(f"发送请求: {method} {path}")
                 self._debug_print(f"请求头: {headers}")
                 self._debug_print(f"请求数据: {data}")
-                
             from ..utils.http_utils import send_mock_request
-            result = send_mock_request(method, path, base_url, headers, data)
-            
+            # 判断 path 是否为完整 URL
+            if path and (path.startswith('http://') or path.startswith('https://')):
+                result = send_mock_request(method=method, url=path, headers=headers, data=data, **kwargs)
+            else:
+                result = send_mock_request(method=method, path=path, base_url=base_url, headers=headers, data=data, **kwargs)
             if self.debug:
                 self._debug_print(f"请求结果: {result}")
-                
             return result
         except Exception as e:
             logger.error(f"请求发送失败: {str(e)}")
@@ -157,17 +146,29 @@ class CodeEngine:
             self._debug_print(f"上下文变量: {context}")
             self.context.update(context)
             
+        # 用于存储状态码
+        status_code_holder = {'value': 200}
+        def set_status_code(code):
+            status_code_holder['value'] = code
+            if self.debug:
+                self._debug_print(f"设置响应状态码: {code}")
+        def get_status_code():
+            if self.debug:
+                self._debug_print(f"获取响应状态码: {status_code_holder['value']}")
+            return status_code_holder['value']
+        
         # 创建执行环境
         local_vars = {}
         global_vars = {
             'print': self._capture_print,
-            'sql': self._execute_sql,
-            'http': self._make_http_request,
+            'sql_execute': self._execute_sql,
+            'http_request': (lambda *args, **kwargs: __import__('mock_engine.utils.http_utils', fromlist=['request']).request(*args, debug_callback=self._debug_print, **kwargs)) if self.debug else __import__('mock_engine.utils.http_utils', fromlist=['request']).request,
             'get_context': self.get_context,
             'set_context': self.set_context,
             'get_request_data': self._get_request_data,
-            'request': (lambda *args, **kwargs: __import__('mock_engine.utils.http_utils', fromlist=['request']).request(*args, debug_callback=self._debug_print, **kwargs)) if self.debug else __import__('mock_engine.utils.http_utils', fromlist=['request']).request,
-            'ASSERT': self.ASSERT
+            'ASSERT': self.ASSERT,
+            'set_status_code': set_status_code,
+            'get_status_code': get_status_code
         }
         
         try:
@@ -178,7 +179,7 @@ class CodeEngine:
             # 获取结果
             result = {
                 'data': local_vars.get('result', None),
-                'status_code': local_vars.get('status_code', 200),
+                'status_code': status_code_holder['value'],
                 'stdout': self.stdout.getvalue()
             }
             
